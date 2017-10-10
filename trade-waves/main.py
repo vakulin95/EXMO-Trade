@@ -16,7 +16,7 @@ CURRENCY_2 = 'USD'
 
 CURRENCY_1_MIN_QUANTITY = 0.001 # https://api.exmo.com/v1/pair_settings/
 
-ORDER_LIFE_TIME = 3     # через сколько минут отменять неисполненный ордер на покупку CURRENCY_1
+ORDER_LIFE_TIME = 5     # через сколько минут отменять неисполненный ордер на покупку CURRENCY_1
 STOCK_FEE = 0.002       # Комиссия, которую берет биржа (0.002 = 0.2%)
 AVG_PRICE_PERIOD = 240  # За какой период брать среднюю цену
 SLEEP_TIME = 1          # Время ожидания для получения новых цен
@@ -72,9 +72,12 @@ def call_api(api_method, http_method="POST", **kwargs):
 
 def find_prices(prices):
 
+    # f_price = open('price_arr.log', 'w')
+    f_price_inf = open('price_inf.log', 'a')
     deals = call_api('trades', pair=CURRENT_PAIR)
 
     if len(prices) == 0:
+        f_price_inf.write("----------------------------------------init prices list----------------------------------------\n")
         # print('init prices list')
 
         # Формирование первоначального списка цен
@@ -86,7 +89,10 @@ def find_prices(prices):
 
         # Добавление в список цен пока последняя не будет старше заданного значения
         while (time.time() + STOCK_TIME_OFFSET*60*60 - prices[len(prices) - 1][1]) / 60 < AVG_PRICE_PERIOD:
+
+            f_price_inf.write('{0:10.5f}: sleep {1:3.1f} min | price_arr_len = {2:6d}\n'.format((time.time() - prices[len(prices) - 1][1]) / 60, SLEEP_TIME, len(prices)))
             print('{0:10.5f}: sleep {1:3.1f} min'.format((time.time() - prices[len(prices) - 1][1]) / 60, SLEEP_TIME))
+
             time.sleep(SLEEP_TIME * 60)
 
             deals = call_api('trades', pair=CURRENT_PAIR)
@@ -95,32 +101,56 @@ def find_prices(prices):
                 time_passed = (time.time() + STOCK_TIME_OFFSET*60*60 - int(deal['date'])) / 60
                 if time_passed < SLEEP_TIME:
                     prices.insert(0, [float(deal['price']), int(deal['date'])])
+
+        f_price_inf.write("-------------------------------------correcting prices list-------------------------------------\n")
     else:
         # print('correcting prices list')
 
         # Добавление новых цен в начало списка
         last_price = (int)(prices[0][1])
+        count_add = 0
         for deal in deals[CURRENT_PAIR]:
             if (int(deal['date']) - last_price) / 60 > 1:
+                count_add = count_add + 1
                 prices.insert(0, [float(deal['price']), int(deal['date'])])
             else:
                 break
 
         # Удаление уже "неинтересных" цен
+        count_old = 0
         while((time.time() + STOCK_TIME_OFFSET*60*60 - prices[len(prices) - 1][1]) / 60 > AVG_PRICE_PERIOD):
+            count_old = count_old + 1
             prices.pop()
+
+        f_price_inf.write('added:         {0:6d}\n'.format(count_add))
+        f_price_inf.write('deleted old:   {0:6d}\n'.format(count_old))
 
     # Удаление сделок по одинаковой цене в одно и тоже время
     prev_time = prices[0][1]
     prev_pr = prices[0][0]
     i = 1
+    count_del = 0
     while i < len(prices) - 1:
         if (prices[i][1] == prev_time) and (prev_pr == prices[i][0]):
+            count_del = count_del + 1
             prices.pop(i)
         else:
             prev_time = prices[i][1]
             prev_pr = prices[i][0]
             i += 1
+
+    f_price_inf.write('deleted same:  {0:6d}\n'.format(count_del))
+    f_price_inf.write('price_arr_len: {0:6d}\n'.format(len(prices)))
+
+    f_price_inf.write("------------------------------------------------------------------------------------------------\n")
+    # f_price.write("----------------------------------------PRICES ARRAY----------------------------------------\n")
+    # for e in prices:
+    #     f_price.write('{1:10.5f} {0:10.3f}\n'.format(e[0], (time.time() - e[1]) / 60))
+    # f_price.write("--------------------------------------------------------------------------------------------\n")
+
+
+    f_price_inf.close();
+    # f_price.close();
 
 # Метод формирования цены закупки основанный только на анализе предыдущих цен
 def buy_price(prices):
@@ -239,6 +269,9 @@ def main_flow(prices_arr):
         pass
     except Exception as e:
         print("!!!!",e)
+
+
+#---------------------------------------------------------------------------------------#
 
 pr_array = []
 

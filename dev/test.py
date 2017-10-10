@@ -1,6 +1,6 @@
-f = open('/home/artyom/Документы/exmo_key.dat')
+f_log = open('print_out.log', 'w')
 
-API_KEY = f.readline(42)
-API_SECRET = (f.readline(42)).encode()
 
-print(API_KEY)
+f_log.write("1")
+f_log.write('1')
+f_log.write('1')
