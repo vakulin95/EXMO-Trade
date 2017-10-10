@@ -4,9 +4,9 @@ Crypto bot on python3
 
 ## Сontent
 
-- [dev]() - some scripts without real trading
-- [trade-pump]() - simple trader without any analysis
-- [trade-waves]() - app accumulates transaction prices
+- [dev](https://github.com/vakulin95/EXMO-Trade/tree/master/dev) - some scripts without real trading
+- [trade-pump](https://github.com/vakulin95/EXMO-Trade/tree/master/trade-pump) - simple trader without any analysis
+- [trade-waves](https://github.com/vakulin95/EXMO-Trade/tree/master/trade-waves) - app accumulates transaction prices
 
 ## Options
 
