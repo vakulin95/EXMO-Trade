@@ -3,6 +3,7 @@ import time
 import json
 # эти модули нужны для генерации подписи API
 import hmac, hashlib
+import matplotlib.pyplot as plot
 
 f = open('/home/exmo_key.dat')
 
@@ -146,14 +147,83 @@ def buy_price(prices):
 
     return Y
 
-pr_array = []
+# pr_array = []
 
 # while(True):
-find_prices(pr_array)
-buy_price(pr_array)
+# find_prices(pr_array)
+# buy_price(pr_array)
 
     # for e in pr_array:
     #     print('{1:10.5f} {0:10.3f}'.format(e[0], (time.time() - e[1]) / 60))
     #
     # print('\nsleep 1 min then upload new prices')
     # time.sleep(60)
+
+def linreg(X, Y):
+    """
+    return a,b in solution to y = ax + b such that root mean square distance between trend line and original points is minimized
+    """
+    N = len(X)
+    Sx = Sy = Sxx = Syy = Sxy = 0.0
+    for x, y in zip(X, Y):
+        Sx = Sx + x
+        Sy = Sy + y
+        Sxx = Sxx + x*x
+        Syy = Syy + y*y
+        Sxy = Sxy + x*y
+    det = Sxx * N - Sx * Sx
+    return (Sxy * N - Sy * Sx)/det, (Sxx * Sy - Sx * Sxy)/det
+
+prices = []
+xa = []
+ya = []
+deals = call_api('trades', pair=CURRENT_PAIR)
+
+ptime = 0
+for deal in deals[CURRENT_PAIR]:
+    time_passed = (time.time() + STOCK_TIME_OFFSET*60*60 - int(deal['date'])) / 60
+    # print('{0:10.5f} {1:10.3f} {2:10}'.format(time_passed, float(deal['price']), deal['type']))
+    if time_passed <= 9 0:
+        prices.append(float(deal['price']))
+        ptime = int(deal['date'])
+
+
+
+a,b = linreg(range(len(prices)), prices)  # your x,y are switched from standard notation
+
+xa = list(range(len(prices)))
+for e in xa:
+    ya.append(a * e + b)
+
+plot.figure(1)
+plot.plot(xa, ya)
+plot.plot(prices)
+
+print(a, b, (time.time() - ptime) / 60)
+
+xa = []
+ya = []
+
+
+prev_pr = prices[0]
+i = 1
+while i < len(prices) - 1:
+    if (prev_pr == prices[i]):
+        prices.pop(i)
+    else:
+        prev_pr = prices[i]
+        i += 1
+
+a,b = linreg(range(len(prices)), prices)  # your x,y are switched from standard notation
+
+xa = list(range(len(prices)))
+for e in xa:
+    ya.append(a * e + b)
+
+plot.figure(2)
+plot.plot(xa, ya)
+plot.plot(prices)
+
+print(a, b, (time.time() - ptime) / 60)
+
+plot.show()
