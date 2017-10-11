@@ -16,16 +16,17 @@ CURRENCY_2 = 'USD'
 
 CURRENCY_1_MIN_QUANTITY = 0.001 # https://api.exmo.com/v1/pair_settings/
 
-ORDER_LIFE_TIME = 5     # через сколько минут отменять неисполненный ордер на покупку CURRENCY_1
-STOCK_FEE = 0.002       # Комиссия, которую берет биржа (0.002 = 0.2%)
-AVG_PRICE_PERIOD = 240  # За какой период брать среднюю цену
-SLEEP_TIME = 1          # Время ожидания для получения новых цен
-CAN_SPEND = 10          # Сколько тратить CURRENCY_2 каждый раз при покупке CURRENCY_1
-PROFIT_MARKUP = 0.003   # Какой навар нужен с каждой сделки? (0.001 = 0.1%)
-DEBUG = False            # True - выводить отладочную информацию, False - писать как можно меньше
-PRICE_PERCENT = 0.2    # Коэффициент для формирования цены
+ORDER_LIFE_TIME     = 5         # через сколько минут отменять неисполненный ордер на покупку CURRENCY_1
+STOCK_FEE           = 0.002     # Комиссия, которую берет биржа (0.002 = 0.2%)
+AVG_PRICE_PERIOD    = 180       # За какой период брать среднюю цену
+SLEEP_TIME          = 1         # Время ожидания для получения новых цен
+CAN_SPEND           = 10        # Сколько тратить CURRENCY_2 каждый раз при покупке CURRENCY_1
+PROFIT_MARKUP       = 0.002     # Какой навар нужен с каждой сделки? (0.001 = 0.1%)
+DEBUG               = False     # True - выводить отладочную информацию, False - писать как можно меньше
+PRICE_PERCENT       = 0.1       # Коэффициент для формирования цены
+DEALS_NUM           = 5         # Количество сделок после которого завершить работу
 
-STOCK_TIME_OFFSET = 0 # Если расходится время биржи с текущим
+STOCK_TIME_OFFSET   = 0         # Если расходится время биржи с текущим
 
 # базовые настройки
 API_URL = 'api.exmo.com'
@@ -38,6 +39,9 @@ class ScriptQuitCondition(Exception):
     pass
 
 CURRENT_PAIR = CURRENCY_1 + '_' + CURRENCY_2
+
+#====================================================================================================================#
+#====================================================================================================================#
 
 # все обращения к API проходят через эту функцию
 def call_api(api_method, http_method="POST", **kwargs):
@@ -70,9 +74,10 @@ def call_api(api_method, http_method="POST", **kwargs):
     except json.decoder.JSONDecodeError:
         raise ScriptError('Ошибка анализа возвращаемых данных, получена строка', response)
 
+#====================================================================================================================#
+
 def find_prices(prices):
 
-    # f_price = open('price_arr.log', 'w')
     f_price_inf = open('price_inf.log', 'a')
     deals = call_api('trades', pair=CURRENT_PAIR)
 
@@ -91,7 +96,7 @@ def find_prices(prices):
         while (time.time() + STOCK_TIME_OFFSET*60*60 - prices[len(prices) - 1][1]) / 60 < AVG_PRICE_PERIOD:
 
             f_price_inf.write('{0:10.5f}: sleep {1:3.1f} min | price_arr_len = {2:6d}\n'.format((time.time() - prices[len(prices) - 1][1]) / 60, SLEEP_TIME, len(prices)))
-            print('{0:10.5f}: sleep {1:3.1f} min'.format((time.time() - prices[len(prices) - 1][1]) / 60, SLEEP_TIME))
+            print('{0:10.5f}: sleep {1:3.1f} min | price_arr_len = {2:6d}'.format((time.time() - prices[len(prices) - 1][1]) / 60, SLEEP_TIME, len(prices)))
 
             time.sleep(SLEEP_TIME * 60)
 
@@ -110,9 +115,10 @@ def find_prices(prices):
         last_price = (int)(prices[0][1])
         count_add = 0
         for deal in deals[CURRENT_PAIR]:
-            if (int(deal['date']) - last_price) / 60 > 1:
+            if int(deal['date']) > last_price:
                 count_add = count_add + 1
                 prices.insert(0, [float(deal['price']), int(deal['date'])])
+                f_price_inf.write('{1:10.5f} | {0:10.3f}\n'.format(float(deal['price']), (time.time() - int(deal['date'])) / 60))
             else:
                 break
 
@@ -143,18 +149,28 @@ def find_prices(prices):
     f_price_inf.write('price_arr_len: {0:6d}\n'.format(len(prices)))
 
     f_price_inf.write("------------------------------------------------------------------------------------------------\n")
-    # f_price.write("----------------------------------------PRICES ARRAY----------------------------------------\n")
-    # for e in prices:
-    #     f_price.write('{1:10.5f} {0:10.3f}\n'.format(e[0], (time.time() - e[1]) / 60))
-    # f_price.write("--------------------------------------------------------------------------------------------\n")
-
 
     f_price_inf.close();
-    # f_price.close();
+
+#====================================================================================================================#
+
+def print_prices(prices):
+
+    f_price = open('price_arr.log', 'w')
+
+    f_price.write("----------------------------------------PRICES ARRAY----------------------------------------\n")
+    for e in prices:
+        f_price.write('{1:10.5f} {0:10.3f}\n'.format(e[0], (time.time() - e[1]) / 60))
+    f_price.write("--------------------------------------------------------------------------------------------\n")
+
+    f_price.close();
+
+#====================================================================================================================#
 
 # Метод формирования цены закупки основанный только на анализе предыдущих цен
 def buy_price(prices):
 
+    f_log = open('buy_pr.log', 'a')
     # Поиск максимальных и минимальных цен
     max_el = prices[0][0]
     min_el = prices[0][0]
@@ -166,12 +182,19 @@ def buy_price(prices):
 
     Y = ((max_el - min_el) * PRICE_PERCENT) + min_el
 
-    # print('max:{0:10.5f}\nmin:{1:10.5f}\nprice:{2:10.5f}'.format(max_el, min_el, Y))
+    f_log.write('max:\t{0:10.5f}\nmin:\t{1:10.5f}\nprice:\t{2:10.5f}\n'.format(max_el, min_el, Y))
+    f_log.write("---\n")
 
+    f_log.close()
     return Y
+
+#====================================================================================================================#
 
 # Реализация алгоритма
 def main_flow(prices_arr):
+
+    # f_log = open('main_flow.log', 'a')
+    retval = 0
 
     try:
         # Получаем список активных ордеров
@@ -219,6 +242,7 @@ def main_flow(prices_arr):
         else: # Открытых ордеров нет
             balances = call_api('user_info')['balances']
             if float(balances[CURRENCY_1]) >= CURRENCY_1_MIN_QUANTITY: # Есть ли в наличии CURRENCY_1, которую можно продать?
+                retval = 1
                 wanna_get = CAN_SPEND + CAN_SPEND * (STOCK_FEE + PROFIT_MARKUP)  # сколько хотим получить за наше кол-во
                 print('sell', balances[CURRENCY_1], wanna_get, (wanna_get/float(balances[CURRENCY_1])))
                 new_order = call_api(
@@ -229,6 +253,7 @@ def main_flow(prices_arr):
                     type='sell'
                 )
                 print(new_order)
+
                 if DEBUG:
                     print('Создан ордер на продажу', CURRENCY_1, new_order['order_id'])
             else:
@@ -270,12 +295,32 @@ def main_flow(prices_arr):
     except Exception as e:
         print("!!!!",e)
 
+    # f_log.close()
 
-#---------------------------------------------------------------------------------------#
+    return retval
 
-pr_array = []
+#====================================================================================================================#
 
-while(True):
+def main():
+    pr_array = []
     find_prices(pr_array)
-    main_flow(pr_array)
-    time.sleep(1)
+    time_pr = time.time()
+    count = 0
+    start = time.time()
+
+    while(count < DEALS_NUM):
+
+        if(main_flow(pr_array)):
+            count = count + 1
+        time.sleep(5)
+
+        if (time.time() - time_pr) / 60 > SLEEP_TIME:
+            find_prices(pr_array)
+            time_pr = time.time()
+
+    print('TIME:\t{0:10.5f}\n'.format((time.time() - start) / 3600))
+
+#====================================================================================================================#
+#====================================================================================================================#
+
+main()

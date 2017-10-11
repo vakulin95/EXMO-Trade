@@ -1,46 +1,27 @@
 ----------------------------------------init prices list----------------------------------------
-  28.31741: sleep 0.1 min | price_arr_len =    100
-  28.42296: sleep 0.1 min | price_arr_len =    100
-  28.52885: sleep 0.1 min | price_arr_len =    100
-  28.63435: sleep 0.1 min | price_arr_len =    100
-  28.74042: sleep 0.1 min | price_arr_len =    100
-  28.89640: sleep 0.1 min | price_arr_len =    100
+  46.77301: sleep 0.1 min | price_arr_len =    100
+  46.87946: sleep 0.1 min | price_arr_len =    100
+  46.98542: sleep 0.1 min | price_arr_len =    100
+  47.09172: sleep 0.1 min | price_arr_len =    100
+  47.19779: sleep 0.1 min | price_arr_len =    101
+  47.30364: sleep 0.1 min | price_arr_len =    102
+  47.40922: sleep 0.1 min | price_arr_len =    102
+  47.51474: sleep 0.1 min | price_arr_len =    102
+  47.62029: sleep 0.1 min | price_arr_len =    102
+  47.72634: sleep 0.1 min | price_arr_len =    102
+  47.83164: sleep 0.1 min | price_arr_len =    102
+  47.93715: sleep 0.1 min | price_arr_len =    102
 -------------------------------------correcting prices list-------------------------------------
-deleted same:      11
-price_arr_len:     89
+deleted same:       8
+price_arr_len:     94
 ------------------------------------------------------------------------------------------------
 added:              0
-deleted old:        7
+deleted old:       10
 deleted same:       0
-price_arr_len:     82
-------------------------------------------------------------------------------------------------
-added:              0
-deleted old:        0
-deleted same:       0
-price_arr_len:     82
+price_arr_len:     84
 ------------------------------------------------------------------------------------------------
 added:              0
 deleted old:        0
 deleted same:       0
-price_arr_len:     82
-------------------------------------------------------------------------------------------------
-added:              0
-deleted old:        0
-deleted same:       0
-price_arr_len:     82
-------------------------------------------------------------------------------------------------
-added:              0
-deleted old:        0
-deleted same:       0
-price_arr_len:     82
-------------------------------------------------------------------------------------------------
-added:              0
-deleted old:        0
-deleted same:       0
-price_arr_len:     82
-------------------------------------------------------------------------------------------------
-added:              0
-deleted old:        0
-deleted same:       0
-price_arr_len:     82
+price_arr_len:     84
 ------------------------------------------------------------------------------------------------
