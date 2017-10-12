@@ -1,10 +1,10 @@
 all: api plot clean
 
-api:
+api: clean
 	@python3 api.py
 
 plot:
 	@gnuplot plot.gnu
 
 clean:
-	@rm -rf *.dat
+	@rm -rf *.log
