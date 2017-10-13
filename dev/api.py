@@ -11,14 +11,9 @@ API_KEY = f.readline(42)
 API_SECRET = (f.readline(42)).encode()
 
 f.close()
-#
-# # ключи API, которые предоставила exmo
-# API_KEY = 'K-37c63e68e7a4896b44f0768cf6d1d08c187cc0ab'
-# # обратите внимание, что добавлена 'b' перед строкой
-# API_SECRET = b'S-7eed55da942f4b9666e9fde42ea4e409fbb7cfc6'
 
 # Тонкая настройка
-CURRENCY_1 = 'LTC'
+CURRENCY_1 = 'BTC'
 CURRENCY_2 = 'USD'
 
 CURRENCY_1_MIN_QUANTITY = 0.01 # минимальная сумма ставки - берется из https://api.exmo.com/v1/pair_settings/

@@ -3,6 +3,7 @@ import time
 import json
 # эти модули нужны для генерации подписи API
 import hmac, hashlib
+import matplotlib.pyplot as plot
 
 f = open('/home/exmo_key.dat')
 
@@ -15,17 +16,20 @@ CURRENCY_1 = 'BTC'
 CURRENCY_2 = 'USD'
 
 CURRENCY_1_MIN_QUANTITY = 0.001 # https://api.exmo.com/v1/pair_settings/
+STOCK_FEE           = 0.002     # Комиссия, которую берет биржа (0.002 = 0.2%)
 
 ORDER_LIFE_TIME     = 5         # через сколько минут отменять неисполненный ордер на покупку CURRENCY_1
-STOCK_FEE           = 0.002     # Комиссия, которую берет биржа (0.002 = 0.2%)
-AVG_PRICE_PERIOD    = 180       # За какой период брать среднюю цену
+AVG_PRICE_PERIOD    = 120       # За какой период брать среднюю цену
 SLEEP_TIME          = 1         # Время ожидания для получения новых цен
-CAN_SPEND           = 10        # Сколько тратить CURRENCY_2 каждый раз при покупке CURRENCY_1
+CAN_SPEND           = 10       # Сколько тратить CURRENCY_2 каждый раз при покупке CURRENCY_1
 PROFIT_MARKUP       = 0.002     # Какой навар нужен с каждой сделки? (0.001 = 0.1%)
-DEBUG               = False     # True - выводить отладочную информацию, False - писать как можно меньше
-PRICE_PERCENT       = 0.1       # Коэффициент для формирования цены
+PRICE_PERCENT       = 0.3       # Коэффициент для формирования цены
 DEALS_NUM           = 5         # Количество сделок после которого завершить работу
+LINREG_LIM          = -0.01     #
+LINREG_PU_LIM       = 0.5       #
+LINREG_PD_LIM       = -0.5      #
 
+DEBUG               = False     # True - выводить отладочную информацию, False - писать как можно меньше
 STOCK_TIME_OFFSET   = 0         # Если расходится время биржи с текущим
 
 # базовые настройки
@@ -115,7 +119,7 @@ def find_prices(prices):
         last_price = (int)(prices[0][1])
         count_add = 0
         for deal in deals[CURRENT_PAIR]:
-            if int(deal['date']) > last_price:
+            if (time_passed(int(deal['date'])) < (time_passed(last_price) - 0.5)):
                 count_add = count_add + 1
                 prices.insert(0, [float(deal['price']), int(deal['date'])])
                 f_price_inf.write('{1:10.5f} | {0:10.3f}\n'.format(float(deal['price']), (time.time() - int(deal['date'])) / 60))
@@ -167,10 +171,9 @@ def print_prices(prices):
 
 #====================================================================================================================#
 
-# Метод формирования цены закупки основанный только на анализе предыдущих цен
+# Метод формирования цены закупки основанный на анализе предыдущих цен
 def buy_price(prices):
 
-    f_log = open('buy_pr.log', 'a')
     # Поиск максимальных и минимальных цен
     max_el = prices[0][0]
     min_el = prices[0][0]
@@ -182,11 +185,98 @@ def buy_price(prices):
 
     Y = ((max_el - min_el) * PRICE_PERCENT) + min_el
 
-    f_log.write('max:\t{0:10.5f}\nmin:\t{1:10.5f}\nprice:\t{2:10.5f}\n'.format(max_el, min_el, Y))
-    f_log.write("---\n")
+    a30, b30 = pr_linreg(prices, 30, True)
+    a, b = pr_linreg(prices, AVG_PRICE_PERIOD, False)
+
+    if (a > LINREG_LIM):
+        Yt = ((max_el - min_el) * PRICE_PERCENT) + min_el
+    else:
+        Yt = ((max_el - min_el) * (PRICE_PERCENT / 3)) + min_el
+
+    f_log = open('buy_pr.log', 'a')
+
+    if (a30 < LINREG_PD_LIM):
+        f_log.write("!!!!!!!!!!GABELLA DOWN!!!!!!!!!!\n")
+
+    if (a30 > LINREG_PU_LIM):
+        f_log.write("!!!!!!!!!!GABELLA UP!!!!!!!!!!\n")
+
+    f_log.write('tr_pr_f:\t\t{0:10.5f}\n'.format(Yt))
+    f_log.write('a30, b30:\t{0:10.5f}, {1:10.5f}\n'.format(a30, b30))
+    f_log.write('a, b:\t\t{0:10.5f}, {1:10.5f}\n\n'.format(a, b))
+    f_log.write('max:\t\t\t{0:10.5f}\nmin:\t\t\t{1:10.5f}\nprice:\t\t\t{2:10.5f}\n'.format(max_el, min_el, Y))
+    f_log.write("----------\n")
 
     f_log.close()
-    return Y
+
+    return Yt
+
+#====================================================================================================================#
+
+# Вычисление линейной регрессии
+def linreg(X, Y):
+    """
+    return a,b in solution to y = ax + b such that root mean square distance between trend line and original points is minimized
+    """
+    N = len(X)
+    Sx = Sy = Sxx = Syy = Sxy = 0.0
+    for x, y in zip(X, Y):
+        Sx = Sx + x
+        Sy = Sy + y
+        Sxx = Sxx + x*x
+        Syy = Syy + y*y
+        Sxy = Sxy + x*y
+    det = Sxx * N - Sx * Sx
+    return (Sxy * N - Sy * Sx)/det, (Sxx * Sy - Sx * Sxy)/det
+
+#====================================================================================================================#
+
+# Количество времени которое прошло с момента date в минутах
+def time_passed(date):
+    return ((time.time() + STOCK_TIME_OFFSET*60*60 - date) / 60)
+
+#====================================================================================================================#
+
+# Вычисление тренда для определенного промежутка цен
+def pr_linreg(prices, timeframe, gabella):
+
+    pr_list = []
+
+    for price in prices:
+        if time_passed(price[1]) <= timeframe:
+            pr_list.append(price[0])
+
+    if gabella:
+        prev_pr = pr_list[0]
+        i = 1
+        while i < len(pr_list):
+            if (prev_pr == pr_list[i]):
+                pr_list.pop(i)
+            else:
+                prev_pr = pr_list[i]
+                i += 1
+
+    a,b = linreg(range(len(pr_list)), pr_list)
+
+    # plot_linreg(a, b, pr_list)
+
+    return a, b
+
+#====================================================================================================================#
+
+# Построить линейную регрессию
+def plot_linreg(a, b, pr_list):
+
+    xlr = []
+    ylr = []
+
+    xlr = list(range(len(pr_list)))
+    for e in xlr:
+        ylr.append(a * e + b)
+
+    plot.plot(xlr, ylr)
+    plot.plot(pr_list)
+    plot.show()
 
 #====================================================================================================================#
 
@@ -314,7 +404,7 @@ def main():
             count = count + 1
         time.sleep(5)
 
-        if (time.time() - time_pr) / 60 > SLEEP_TIME:
+        if (time.time() - time_pr) / 60 > 3 * SLEEP_TIME:
             find_prices(pr_array)
             time_pr = time.time()
 
