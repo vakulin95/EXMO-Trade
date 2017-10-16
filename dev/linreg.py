@@ -16,7 +16,8 @@ def linreg(X, Y):
     det = Sxx * N - Sx * Sx
     return (Sxy * N - Sy * Sx)/det, (Sxx * Sy - Sx * Sxy)/det
 
-x = [0,1,0,1,0,1,0,1,0]
+x = [5490, 5492, 5489, 5495, 5487,      5410, 5413, 5408, 5402, 5404]
+
 a,b = linreg(range(len(x)),x)  # your x,y are switched from standard notation
 
 xa = list(range(50))

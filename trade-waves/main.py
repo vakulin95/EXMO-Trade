@@ -19,14 +19,14 @@ CURRENCY_1_MIN_QUANTITY = 0.001 # https://api.exmo.com/v1/pair_settings/
 STOCK_FEE           = 0.002     # Комиссия, которую берет биржа (0.002 = 0.2%)
 
 ORDER_LIFE_TIME     = 5         # через сколько минут отменять неисполненный ордер на покупку CURRENCY_1
-AVG_PRICE_PERIOD    = 120       # За какой период брать среднюю цену
+AVG_PRICE_PERIOD    = 180       # За какой период брать среднюю цену
 SLEEP_TIME          = 1         # Время ожидания для получения новых цен
-CAN_SPEND           = 10       # Сколько тратить CURRENCY_2 каждый раз при покупке CURRENCY_1
+CAN_SPEND           = 8       # Сколько тратить CURRENCY_2 каждый раз при покупке CURRENCY_1
 PROFIT_MARKUP       = 0.002     # Какой навар нужен с каждой сделки? (0.001 = 0.1%)
-PRICE_PERCENT       = 0.3       # Коэффициент для формирования цены
+PRICE_PERCENT       = 0.2       # Коэффициент для формирования цены
 DEALS_NUM           = 5         # Количество сделок после которого завершить работу
 LINREG_LIM          = -0.01     #
-LINREG_PU_LIM       = 0.5       #
+LINREG_PU_LIM       = 1       #
 LINREG_PD_LIM       = -0.5      #
 
 DEBUG               = False     # True - выводить отладочную информацию, False - писать как можно меньше
@@ -80,6 +80,12 @@ def call_api(api_method, http_method="POST", **kwargs):
 
 #====================================================================================================================#
 
+# Количество времени которое прошло с момента date в минутах
+def time_passed_min(date):
+    return ((time.time() + STOCK_TIME_OFFSET*60*60 - date) / 60)
+
+#====================================================================================================================#
+
 def find_prices(prices):
 
     f_price_inf = open('price_inf.log', 'a')
@@ -119,7 +125,7 @@ def find_prices(prices):
         last_price = (int)(prices[0][1])
         count_add = 0
         for deal in deals[CURRENT_PAIR]:
-            if (time_passed(int(deal['date'])) < (time_passed(last_price) - 0.5)):
+            if ( time_passed_min(int(deal['date'])) ) < SLEEP_TIME * 2.5:
                 count_add = count_add + 1
                 prices.insert(0, [float(deal['price']), int(deal['date'])])
                 f_price_inf.write('{1:10.5f} | {0:10.3f}\n'.format(float(deal['price']), (time.time() - int(deal['date'])) / 60))
@@ -183,7 +189,7 @@ def buy_price(prices):
         if min_el > e[0]:
             min_el = e[0]
 
-    Y = ((max_el - min_el) * PRICE_PERCENT) + min_el
+    # Y = ((max_el - min_el) * PRICE_PERCENT) + min_el
 
     a30, b30 = pr_linreg(prices, 30, True)
     a, b = pr_linreg(prices, AVG_PRICE_PERIOD, False)
@@ -191,20 +197,20 @@ def buy_price(prices):
     if (a > LINREG_LIM):
         Yt = ((max_el - min_el) * PRICE_PERCENT) + min_el
     else:
-        Yt = ((max_el - min_el) * (PRICE_PERCENT / 3)) + min_el
+        Yt = 0
 
     f_log = open('buy_pr.log', 'a')
 
     if (a30 < LINREG_PD_LIM):
+        Yt = 0
         f_log.write("!!!!!!!!!!GABELLA DOWN!!!!!!!!!!\n")
 
     if (a30 > LINREG_PU_LIM):
         f_log.write("!!!!!!!!!!GABELLA UP!!!!!!!!!!\n")
 
-    f_log.write('tr_pr_f:\t\t{0:10.5f}\n'.format(Yt))
     f_log.write('a30, b30:\t{0:10.5f}, {1:10.5f}\n'.format(a30, b30))
     f_log.write('a, b:\t\t{0:10.5f}, {1:10.5f}\n\n'.format(a, b))
-    f_log.write('max:\t\t\t{0:10.5f}\nmin:\t\t\t{1:10.5f}\nprice:\t\t\t{2:10.5f}\n'.format(max_el, min_el, Y))
+    f_log.write('max:\t\t\t{0:10.5f}\nmin:\t\t\t{1:10.5f}\nprice:\t\t\t{2:10.5f}\n'.format(max_el, min_el, Yt))
     f_log.write("----------\n")
 
     f_log.close()
@@ -231,19 +237,14 @@ def linreg(X, Y):
 
 #====================================================================================================================#
 
-# Количество времени которое прошло с момента date в минутах
-def time_passed(date):
-    return ((time.time() + STOCK_TIME_OFFSET*60*60 - date) / 60)
-
-#====================================================================================================================#
-
 # Вычисление тренда для определенного промежутка цен
 def pr_linreg(prices, timeframe, gabella):
 
     pr_list = []
+    prnum_g = 50
 
     for price in prices:
-        if time_passed(price[1]) <= timeframe:
+        if time_passed_min(price[1]) <= timeframe:
             pr_list.append(price[0])
 
     if gabella:
@@ -255,6 +256,15 @@ def pr_linreg(prices, timeframe, gabella):
             else:
                 prev_pr = pr_list[i]
                 i += 1
+
+        t1 = pr_list[0:prnum_g]
+        t2 = pr_list[(len(pr_list) - prnum_g):len(pr_list)]
+        pr_list = []
+
+        for e in t1:
+            pr_list.append(e)
+        for e in t2:
+            pr_list.append(e)
 
     a,b = linreg(range(len(pr_list)), pr_list)
 
@@ -352,22 +362,24 @@ def main_flow(prices_arr):
                 if float(balances[CURRENCY_2]) >= CAN_SPEND:
                     try:
                         my_need_price = buy_price(prices_arr)
-                        my_amount = CAN_SPEND / my_need_price
+                        if (my_need_price != 0):
+                            my_amount = CAN_SPEND / my_need_price
 
-                        print('buy', my_amount, my_need_price)
+                            print('buy', my_amount, my_need_price)
 
-                        # Допускается ли покупка такого кол-ва валюты (т.е. не нарушается минимальная сумма сделки)
-                        if my_amount >= CURRENCY_1_MIN_QUANTITY:
-                            new_order = call_api(
-                                'order_create',
-                                pair=CURRENT_PAIR,
-                                quantity = my_amount,
-                                price=my_need_price,
-                                type='buy'
-                            )
-                            print(new_order)
-                            if DEBUG:
-                                print('Создан ордер на покупку', new_order['order_id'])
+                            # Допускается ли покупка такого кол-ва валюты (т.е. не нарушается минимальная сумма сделки)
+                            if my_amount >= CURRENCY_1_MIN_QUANTITY:
+                                # retval = 1
+                                new_order = call_api(
+                                    'order_create',
+                                    pair=CURRENT_PAIR,
+                                    quantity = my_amount,
+                                    price=my_need_price,
+                                    type='buy'
+                                )
+                                print(new_order)
+                                if DEBUG:
+                                    print('Создан ордер на покупку', new_order['order_id'])
 
                         else: # мы можем купить слишком мало на нашу сумму
                             ScriptQuitCondition('Выход, не хватает денег на создание ордера')
@@ -393,6 +405,13 @@ def main_flow(prices_arr):
 
 def main():
     pr_array = []
+
+    f = open('buy_pr.log', 'w')
+    f.close()
+
+    f = open('price_inf.log', 'w')
+    f.close()
+
     find_prices(pr_array)
     time_pr = time.time()
     count = 0
