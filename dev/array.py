@@ -1,3 +1,17 @@
+import datetime
+
+now = datetime.datetime.now()
+
+print(now)
+
+f = open('file.dat', 'a')
+
+count = 1
+
+f.write('{0:3d}\t- {1}\n'.format(count, datetime.datetime.now()))
+
+f.close()
+
 arr = []
 
 for i in range(5):

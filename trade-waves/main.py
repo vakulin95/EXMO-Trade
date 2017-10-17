@@ -4,6 +4,7 @@ import json
 # эти модули нужны для генерации подписи API
 import hmac, hashlib
 import matplotlib.pyplot as plot
+import datetime
 
 f = open('/home/exmo_key.dat')
 
@@ -27,7 +28,8 @@ PRICE_PERCENT       = 0.2       # Коэффициент для формиров
 DEALS_NUM           = 5         # Количество сделок после которого завершить работу
 LINREG_LIM          = -0.01     #
 LINREG_PU_LIM       = 1       #
-LINREG_PD_LIM       = -0.5      #
+LINREG_PD_LIM       = -0.2      #
+WORK_TIME           = 20
 
 DEBUG               = False     # True - выводить отладочную информацию, False - писать как можно меньше
 STOCK_TIME_OFFSET   = 0         # Если расходится время биржи с текущим
@@ -191,7 +193,7 @@ def buy_price(prices):
 
     # Y = ((max_el - min_el) * PRICE_PERCENT) + min_el
 
-    a30, b30 = pr_linreg(prices, 30, True)
+    a60, b60 = pr_linreg(prices, 60, True)
     a, b = pr_linreg(prices, AVG_PRICE_PERIOD, False)
 
     if (a > LINREG_LIM):
@@ -201,14 +203,16 @@ def buy_price(prices):
 
     f_log = open('buy_pr.log', 'a')
 
-    if (a30 < LINREG_PD_LIM):
+    f_log.write('{0}\n'.format(datetime.datetime.now()))
+
+    if (a60 < LINREG_PD_LIM):
         Yt = 0
         f_log.write("!!!!!!!!!!GABELLA DOWN!!!!!!!!!!\n")
 
-    if (a30 > LINREG_PU_LIM):
+    if (a60 > LINREG_PU_LIM):
         f_log.write("!!!!!!!!!!GABELLA UP!!!!!!!!!!\n")
 
-    f_log.write('a30, b30:\t{0:10.5f}, {1:10.5f}\n'.format(a30, b30))
+    f_log.write('a60, b60:\t{0:10.5f}, {1:10.5f}\n'.format(a60, b60))
     f_log.write('a, b:\t\t{0:10.5f}, {1:10.5f}\n\n'.format(a, b))
     f_log.write('max:\t\t\t{0:10.5f}\nmin:\t\t\t{1:10.5f}\nprice:\t\t\t{2:10.5f}\n'.format(max_el, min_el, Yt))
     f_log.write("----------\n")
@@ -412,22 +416,30 @@ def main():
     f = open('price_inf.log', 'w')
     f.close()
 
+    f_log = open('main.log', 'a')
+
     find_prices(pr_array)
     time_pr = time.time()
     count = 0
     start = time.time()
 
-    while(count < DEALS_NUM):
+    while((time.time() - start) / 3600 < WORK_TIME):
 
         if(main_flow(pr_array)):
             count = count + 1
-        time.sleep(5)
+            f_log.write('{0:3d}\t- {1}\n'.format(count, datetime.datetime.now()))
+
+        time.sleep(30)
 
         if (time.time() - time_pr) / 60 > 3 * SLEEP_TIME:
             find_prices(pr_array)
             time_pr = time.time()
 
     print('TIME:\t{0:10.5f}\n'.format((time.time() - start) / 3600))
+    f_log.write('TIME:\t{0:10.5f}\n'.format((time.time() - start) / 3600))
+    f_log.write('------------------------------------------------------------------------\n')
+
+    f_log.close()
 
 #====================================================================================================================#
 #====================================================================================================================#
